@@ -2,7 +2,7 @@
 
 A [pi](https://github.com/earendil-works/pi-coding-agent) extension that shows your **OpenRouter credit balance** in the footer, right below the input line. The balance is colored by thresholds you set.
 
-![Footer with OR balance](docs/footer.png)
+![Footer with OR balance](docs/footer-0.2.0.png)
 
 ```
 caveman:lite ○ ⭕ OR balance: $22.37 ○ 🐴 ponytail: ⚡ FULL telegram disconnected
