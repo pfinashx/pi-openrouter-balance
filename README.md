@@ -5,12 +5,13 @@ A [pi](https://github.com/earendil-works/pi-coding-agent) extension that shows y
 ![Footer with OR balance](docs/footer-0.2.0.png)
 
 ```
-caveman:lite ○ ⭕ OR balance: $22.37 ○ 🐴 ponytail: ⚡ FULL telegram disconnected
+caveman:lite ● 🌐 OR balance: $22.37 ○ 🐴 ponytail: ⚡ FULL telegram disconnected
 ```
 
 ## Features
 
 - Shows `OR balance: $X.XX` in the pi footer with a configurable icon.
+- Separator turns from `○` to `●` while the balance is being requested, and stays `●` for 3 seconds after it finishes.
 - Colors the balance by thresholds: green, yellow, or red.
 - Refreshes on session start, after each agent turn settles, and every 5 minutes.
 - Manual refresh with `/or-balance`.
@@ -56,14 +57,14 @@ Optional file `~/.pi/agent/openrouter-balance.json`. If it is missing, the defau
 
 ```json
 {
-  "icon": "⭕",
+  "icon": "U+1F310",
   "thresholds": { "green": 20, "yellow": 5 }
 }
 ```
 
 | Key | Default | Meaning |
 |---|---|---|
-| `icon` | `⭕` | Symbol shown before `OR balance` |
+| `icon` | `U+1F310` | Symbol before `OR balance`. Use a Unicode code (`U+1F310` = 🌐, `U+2B55` = ⭕) or a literal character |
 | `thresholds.green` | `20` | Balance at or above this value is green (`success`) |
 | `thresholds.yellow` | `5` | Balance at or above this value (and below `green`) is yellow (`warning`). Lower is red (`error`) |
 
@@ -87,6 +88,10 @@ Colors come from your pi theme, so they follow the active theme.
 | Warning `openrouter-balance.json: ...` | Invalid JSON in the config file. Defaults are used until it is fixed |
 
 ## Changelog
+
+### 0.3.0
+- Separator `●` while the balance is loading and for 3 s after it finishes.
+- Icon set by Unicode code in config (`"U+1F310"`), default 🌐 instead of ⭕.
 
 ### 0.2.0
 - Icon before the balance (default `⭕`), configurable.

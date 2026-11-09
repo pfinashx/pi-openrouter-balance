@@ -1,8 +1,9 @@
 /**
- * OpenRouter balance in footer status. Version 0.2.0
+ * OpenRouter balance in footer status. Version 0.3.0
  *
  * Reads baseUrl and apiKey of provider "openrouter-proxy" from ~/.pi/agent/models.json,
- * calls GET {baseUrl}/credits and shows "○ ⭕ OR balance: $X.XX" in the footer.
+ * calls GET {baseUrl}/credits and shows "○ 🌐 OR balance: $X.XX" in the footer.
+ * The separator turns into "●" while a request runs and for 3 s after it finishes.
  * The balance is colored by thresholds from ~/.pi/agent/openrouter-balance.json.
  * Refreshes on session start, after agent settles, every 5 min, and via /or-balance.
  */
@@ -15,6 +16,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 const PROVIDER = "openrouter-proxy";
 const STATUS_KEY = "openrouter-balance";
 const REFRESH_MS = 5 * 60 * 1000;
+const ACTIVE_HOLD_MS = 3000;
 const AGENT_DIR = join(homedir(), ".pi", "agent");
 
 interface ProviderConfig {
@@ -28,12 +30,13 @@ interface Thresholds {
 }
 
 interface BalanceConfig {
+	/** Raw value from config: "U+1F310" code or a literal glyph. */
 	icon: string;
 	thresholds: Thresholds;
 }
 
 const DEFAULT_CONFIG: BalanceConfig = {
-	icon: "⭕",
+	icon: "U+1F310",
 	thresholds: { green: 20, yellow: 5 },
 };
 
@@ -66,6 +69,14 @@ async function loadConfig(): Promise<BalanceConfig> {
 	};
 }
 
+/** "U+1F310" -> "🌐". Anything else is used as a literal glyph. */
+function resolveIcon(raw: string): string {
+	const match = /^U\+([0-9A-Fa-f]{4,6})$/i.exec(raw.trim());
+	if (!match) return raw;
+	const code = parseInt(match[1], 16);
+	return code <= 0x10ffff ? String.fromCodePoint(code) : DEFAULT_CONFIG.icon;
+}
+
 async function fetchBalance(): Promise<number> {
 	const { baseUrl, apiKey } = await loadProvider();
 	const response = await fetch(`${baseUrl!.replace(/\/$/, "")}/credits`, {
@@ -83,20 +94,36 @@ function balanceColor(balance: number, t: Thresholds): ThemeColor {
 	return "error";
 }
 
-function renderStatus(ctx: ExtensionContext, cfg: BalanceConfig, balance: number | undefined) {
+function renderStatus(
+	ctx: ExtensionContext,
+	cfg: BalanceConfig,
+	balance: number | undefined,
+	active: boolean,
+) {
 	const theme = ctx.ui.theme;
-	const fg = (color: ThemeColor | "dim" | "muted", text: string) => (theme?.fg ? theme.fg(color, text) : text);
-	const sep = fg("dim", "○");
+	const fg = (color: ThemeColor | "dim" | "muted" | "accent", text: string) =>
+		theme?.fg ? theme.fg(color, text) : text;
+	const sep = active ? fg("accent", "●") : fg("dim", "○");
 	const label = fg("muted", "OR balance: ");
 	const value =
-		balance === undefined ? fg("dim", "n/a") : fg(balanceColor(balance, cfg.thresholds), `$${balance.toFixed(2)}`);
-	ctx.ui.setStatus(STATUS_KEY, `${sep} ${cfg.icon} ${label}${value}`);
+		balance === undefined
+			? fg("dim", "n/a")
+			: fg(balanceColor(balance, cfg.thresholds), `$${balance.toFixed(2)}`);
+	ctx.ui.setStatus(STATUS_KEY, `${sep} ${resolveIcon(cfg.icon)} ${label}${value}`);
 }
 
 export default function (pi: ExtensionAPI) {
 	let timer: ReturnType<typeof setInterval> | undefined;
+	let holdTimer: ReturnType<typeof setTimeout> | undefined;
+	let lastBalance: number | undefined;
+	let lastCtx: ExtensionContext | undefined;
+	let lastCfg: BalanceConfig = DEFAULT_CONFIG;
 
 	async function refresh(ctx: ExtensionContext) {
+		lastCtx = ctx;
+		clearTimeout(holdTimer);
+		holdTimer = undefined;
+
 		let cfg: BalanceConfig;
 		try {
 			cfg = await loadConfig();
@@ -104,13 +131,22 @@ export default function (pi: ExtensionAPI) {
 			cfg = DEFAULT_CONFIG;
 			ctx.ui.notify((err as Error).message, "warning");
 		}
+		lastCfg = cfg;
+
+		renderStatus(ctx, cfg, lastBalance, true);
 		try {
-			const balance = await fetchBalance();
-			renderStatus(ctx, cfg, balance);
+			lastBalance = await fetchBalance();
 		} catch (err) {
-			renderStatus(ctx, cfg, undefined);
+			lastBalance = undefined;
 			ctx.ui.notify(`OpenRouter balance: ${(err as Error).message}`, "warning");
 		}
+		renderStatus(ctx, cfg, lastBalance, true);
+
+		holdTimer = setTimeout(() => {
+			holdTimer = undefined;
+			if (lastCtx) renderStatus(lastCtx, lastCfg, lastBalance, false);
+		}, ACTIVE_HOLD_MS);
+		holdTimer.unref?.();
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
@@ -126,7 +162,10 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		clearInterval(timer);
+		clearTimeout(holdTimer);
 		timer = undefined;
+		holdTimer = undefined;
+		lastCtx = undefined;
 		ctx.ui.setStatus(STATUS_KEY, undefined);
 	});
 
