@@ -5,7 +5,7 @@ A [pi](https://github.com/earendil-works/pi-coding-agent) extension that shows y
 ![Footer with OR balance](docs/footer-0.3.0.png)
 
 ```
-caveman:lite ● 🌐 OR balance: $22.37 ○ 🐴 ponytail: ⚡ FULL telegram disconnected
+caveman:lite ○ 🌐 OR balance: $21.98 ○ 🐴 ponytail: ⚡ FULL telegram disconnected
 ```
 
 ## Features
